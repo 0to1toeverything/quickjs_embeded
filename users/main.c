@@ -1,44 +1,91 @@
-/* File generated automatically by the QuickJS compiler. */
+/*
+ * QuickJS command line compiler
+ * 
+ * Copyright (c) 2018-2021 Fabrice Bellard
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdarg.h>
+#include <inttypes.h>
+#include <string.h>
+#include <assert.h>
+#include <unistd.h>
+#include <errno.h>
+#if !defined(_WIN32)
+#include <sys/wait.h>
+#endif
 
+#include "cutils.h"
 #include "quickjs-libc.h"
 
-const uint32_t qjsc_hello_size = 87;
-
-const uint8_t qjsc_hello[87] = {
- 0x02, 0x04, 0x0e, 0x63, 0x6f, 0x6e, 0x73, 0x6f,
- 0x6c, 0x65, 0x06, 0x6c, 0x6f, 0x67, 0x16, 0x48,
- 0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x57, 0x6f, 0x72,
- 0x6c, 0x64, 0x22, 0x65, 0x78, 0x61, 0x6d, 0x70,
- 0x6c, 0x65, 0x73, 0x2f, 0x68, 0x65, 0x6c, 0x6c,
- 0x6f, 0x2e, 0x6a, 0x73, 0x0e, 0x00, 0x06, 0x00,
- 0xa0, 0x01, 0x00, 0x01, 0x00, 0x03, 0x00, 0x00,
- 0x14, 0x01, 0xa2, 0x01, 0x00, 0x00, 0x00, 0x38,
- 0xe1, 0x00, 0x00, 0x00, 0x42, 0xe2, 0x00, 0x00,
- 0x00, 0x04, 0xe3, 0x00, 0x00, 0x00, 0x24, 0x01,
- 0x00, 0xcd, 0x28, 0xc8, 0x03, 0x01, 0x00,
-};
-
-static JSContext *JS_NewCustomContext(JSRuntime *rt)
+static int eval_buf(JSContext *ctx, const void *buf, int buf_len,
+                    const char *filename, int eval_flags)
 {
-  JSContext *ctx = JS_NewContextRaw(rt);
-  if (!ctx)
-    return NULL;
-  JS_AddIntrinsicBaseObjects(ctx);
-  return ctx;
+    JSValue val;
+    int ret;
+
+    if ((eval_flags & JS_EVAL_TYPE_MASK) == JS_EVAL_TYPE_MODULE) {
+        /* for the modules, we compile then run to be able to set
+           import.meta */
+        val = JS_Eval(ctx, buf, buf_len, filename,
+                      eval_flags | JS_EVAL_FLAG_COMPILE_ONLY);
+        if (!JS_IsException(val)) {
+            js_module_set_import_meta(ctx, val, TRUE, TRUE);
+            val = JS_EvalFunction(ctx, val);
+        }
+    } else {
+        val = JS_Eval(ctx, buf, buf_len, filename, eval_flags);
+    }
+    if (JS_IsException(val)) {
+        js_std_dump_error(ctx);
+        ret = -1;
+    } else {
+        ret = 0;
+    }
+    JS_FreeValue(ctx, val);
+    return ret;
 }
+
+static int eval_file(JSContext *ctx, const char *filename, int module)
+{
+    uint8_t *buf;
+    int ret, eval_flags;
+    size_t buf_len;
+    
+    buf = js_load_file(ctx, &buf_len, filename);
+    ret = eval_buf(ctx, buf, buf_len, filename, eval_flags);
+    js_free(ctx, buf);
+    return ret;
+}
+
+
 
 int main(int argc, char **argv)
 {
-  JSRuntime *rt;
-  JSContext *ctx;
-  rt = JS_NewRuntime();
-  js_std_set_worker_new_context_func(JS_NewCustomContext);
-  js_std_init_handlers(rt);
-  ctx = JS_NewCustomContext(rt);
-  js_std_add_helpers(ctx, argc, argv);
-  js_std_eval_binary(ctx, qjsc_hello, qjsc_hello_size, 0);
-  js_std_loop(ctx);
-  JS_FreeContext(ctx);
-  JS_FreeRuntime(rt);
-  return 0;
+
+    JSRuntime *rt;
+    JSContext *ctx;
+    rt = JS_NewRuntime();
+    ctx = JS_NewContext(rt);
+    js_std_add_helpers(ctx, -1, 0);
+    eval_file(ctx, "examples/hello.js", JS_EVAL_TYPE_GLOBAL);
+    return 0;
 }
