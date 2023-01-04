@@ -23,15 +23,17 @@
  * THE SOFTWARE.
  */
 #include "quickjs_conf.h"
+#include <string.h>
+#if USE_STD_LIB_FUNC
 #include <stdlib.h>
-#include <stdio.h>
 #include <stdarg.h>
 #include <inttypes.h>
-#include <string.h>
 #include <assert.h>
 #include <limits.h>
 #include <unistd.h>
 #include <errno.h>
+#include <stdio.h>
+#endif
 #if USE_OS_LIB_FUNC
 #include <fcntl.h>
 #include <sys/time.h>
@@ -45,12 +47,14 @@
 #include <conio.h>
 #include <utime.h>
 #else
-#include <dlfcn.h>
 #if USE_OS_LIB_FUNC
 #include <termios.h>
 #include <sys/ioctl.h>
 #endif
+#if USE_STD_FILE_IO
 #include <sys/wait.h>
+#include <dlfcn.h>
+#endif
 
 #if defined(__APPLE__)
 typedef sig_t sighandler_t;
@@ -134,8 +138,10 @@ typedef struct JSThreadState {
     JSWorkerMessagePipe *recv_pipe, *send_pipe;
 } JSThreadState;
 
-static uint64_t os_pending_signals;
 static int (*os_poll_func)(JSContext *ctx);
+
+#if USE_STD_FILE_IO
+static uint64_t os_pending_signals;
 
 static void js_std_dbuf_init(JSContext *ctx, DynBuf *s)
 {
@@ -870,6 +876,7 @@ static void js_set_error_object(JSContext *ctx, JSValue obj, int err)
     }
 }
 
+#if USE_STD_FILE_IO
 static JSValue js_std_open(JSContext *ctx, JSValueConst this_val,
                            int argc, JSValueConst *argv)
 {
@@ -1276,7 +1283,7 @@ static JSValue js_std_file_putByte(JSContext *ctx, JSValueConst this_val,
     c = fputc(c, f);
     return JS_NewInt32(ctx, c);
 }
-
+#endif /* USE_STD_FILE_IO */
 /* urlGet */
 
 #define URL_GET_PROGRAM "curl -s -i"
@@ -1484,7 +1491,8 @@ static const JSCFunctionListEntry js_std_error_props[] = {
     DEF(EBADF),
 #undef DEF
 };
-
+#endif
+#if USE_STD_FILE_IO
 static const JSCFunctionListEntry js_std_funcs[] = {
     JS_CFUNC_DEF("exit", 1, js_std_exit ),
     JS_CFUNC_DEF("gc", 0, js_std_gc ),
@@ -1498,7 +1506,7 @@ static const JSCFunctionListEntry js_std_funcs[] = {
     JS_CFUNC_DEF("loadFile", 1, js_std_loadFile ),
     JS_CFUNC_DEF("strerror", 1, js_std_strerror ),
     JS_CFUNC_DEF("parseExtJSON", 1, js_std_parseExtJSON ),
-    
+
     /* FILE I/O */
     JS_CFUNC_DEF("open", 2, js_std_open ),
     JS_CFUNC_DEF("popen", 2, js_std_popen ),
@@ -1512,7 +1520,7 @@ static const JSCFunctionListEntry js_std_funcs[] = {
     JS_PROP_INT32_DEF("SEEK_END", SEEK_END, JS_PROP_CONFIGURABLE ),
     JS_OBJECT_DEF("Error", js_std_error_props, countof(js_std_error_props), JS_PROP_CONFIGURABLE),
 };
-    
+
 static const JSCFunctionListEntry js_std_file_proto_funcs[] = {
     JS_CFUNC_DEF("close", 0, js_std_file_close ),
     JS_CFUNC_MAGIC_DEF("puts", 1, js_std_file_puts, 1 ),
@@ -1533,6 +1541,7 @@ static const JSCFunctionListEntry js_std_file_proto_funcs[] = {
     JS_CFUNC_DEF("putByte", 1, js_std_file_putByte ),
     /* setvbuf, ...  */
 };
+
 
 static int js_std_init(JSContext *ctx, JSModuleDef *m)
 {
@@ -1568,7 +1577,7 @@ JSModuleDef *js_init_module_std(JSContext *ctx, const char *module_name)
     JS_AddModuleExport(ctx, m, "err");
     return m;
 }
-
+#endif
 /**********************************************************/
 /* 'os' object */
 #if USE_OS_LIB_FUNC
@@ -3763,9 +3772,10 @@ void js_std_add_helpers(JSContext *ctx, int argc, char **argv)
     
     JS_SetPropertyStr(ctx, global_obj, "print",
                       JS_NewCFunction(ctx, js_print, "print", 1));
+    #if USE_STD_FILE_IO
     JS_SetPropertyStr(ctx, global_obj, "__loadScript",
                       JS_NewCFunction(ctx, js_loadScript, "__loadScript", 1));
-    
+    #endif
     JS_FreeValue(ctx, global_obj);
 }
 
@@ -3916,10 +3926,13 @@ void js_std_eval_binary(JSContext *ctx, const uint8_t *buf, size_t buf_len,
     if (JS_IsException(obj))
         goto exception;
     if (load_only) {
+        #if USE_STD_FILE_IO
         if (JS_VALUE_GET_TAG(obj) == JS_TAG_MODULE) {
             js_module_set_import_meta(ctx, obj, FALSE, FALSE);
         }
+        #endif
     } else {
+        #if USE_STD_FILE_IO
         if (JS_VALUE_GET_TAG(obj) == JS_TAG_MODULE) {
             if (JS_ResolveModule(ctx, obj) < 0) {
                 JS_FreeValue(ctx, obj);
@@ -3927,6 +3940,7 @@ void js_std_eval_binary(JSContext *ctx, const uint8_t *buf, size_t buf_len,
             }
             js_module_set_import_meta(ctx, obj, FALSE, TRUE);
         }
+        #endif
         val = JS_EvalFunction(ctx, obj);
         if (JS_IsException(val)) {
         exception:
