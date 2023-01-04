@@ -69,7 +69,7 @@ static int eval_file(JSContext *ctx, const char *filename, int module)
     uint8_t *buf;
     int ret, eval_flags;
     size_t buf_len;
-    
+    eval_flags = module;
     buf = js_load_file(ctx, &buf_len, filename);
     ret = eval_buf(ctx, buf, buf_len, filename, eval_flags);
     js_free(ctx, buf);
@@ -80,7 +80,6 @@ static int eval_file(JSContext *ctx, const char *filename, int module)
 
 int main(int argc, char **argv)
 {
-
     JSRuntime *rt;
     JSContext *ctx;
     rt = JS_NewRuntime();

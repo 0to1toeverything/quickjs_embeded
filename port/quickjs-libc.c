@@ -22,6 +22,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "quickjs_conf.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -59,10 +60,10 @@ typedef sig_t sighandler_t;
 
 #if !defined(_WIN32)
 /* enable the os.Worker API. IT relies on POSIX threads */
-#define USE_WORKER
+
 #endif
 
-#ifdef USE_WORKER
+#if USE_WORKER
 #include <pthread.h>
 #include <stdatomic.h>
 #endif
@@ -105,7 +106,7 @@ typedef struct {
 
 typedef struct {
     int ref_count;
-#ifdef USE_WORKER
+#if USE_WORKER
     pthread_mutex_t mutex;
 #endif
     struct list_head msg_queue; /* list of JSWorkerMessage.link */
@@ -2152,7 +2153,7 @@ static int js_os_poll(JSContext *ctx)
 }
 #else
 
-#ifdef USE_WORKER
+#if USE_WORKER
 
 static void js_free_message(JSWorkerMessage *msg);
 
@@ -3120,7 +3121,7 @@ static JSValue js_os_dup2(JSContext *ctx, JSValueConst this_val,
 
 #endif /* !_WIN32 */
 
-#ifdef USE_WORKER
+#if USE_WORKER
 
 /* Worker */
 
@@ -3560,7 +3561,7 @@ static const JSCFunctionListEntry js_worker_proto_funcs[] = {
 
 void js_std_set_worker_new_context_func(JSContext *(*func)(JSRuntime *rt))
 {
-#ifdef USE_WORKER
+#if USE_WORKER
     js_worker_new_context_func = func;
 #endif
 }
@@ -3667,7 +3668,7 @@ static int js_os_init(JSContext *ctx, JSModuleDef *m)
     JS_NewClassID(&js_os_timer_class_id);
     JS_NewClass(JS_GetRuntime(ctx), js_os_timer_class_id, &js_os_timer_class);
 
-#ifdef USE_WORKER
+#if USE_WORKER
     {
         JSRuntime *rt = JS_GetRuntime(ctx);
         JSThreadState *ts = JS_GetRuntimeOpaque(rt);
@@ -3706,7 +3707,7 @@ JSModuleDef *js_init_module_os(JSContext *ctx, const char *module_name)
     if (!m)
         return NULL;
     JS_AddModuleExportList(ctx, m, js_os_funcs, countof(js_os_funcs));
-#ifdef USE_WORKER
+#if USE_WORKER
     JS_AddModuleExport(ctx, m, "Worker");
 #endif
     return m;
@@ -3781,7 +3782,7 @@ void js_std_init_handlers(JSRuntime *rt)
 
     JS_SetRuntimeOpaque(rt, ts);
 
-#ifdef USE_WORKER
+#if USE_WORKER
     /* set the SharedArrayBuffer memory handlers */
     {
         JSSharedArrayBufferFunctions sf;
@@ -3816,7 +3817,7 @@ void js_std_free_handlers(JSRuntime *rt)
             free_timer(rt, th);
     }
 
-#ifdef USE_WORKER
+#if USE_WORKER
     /* XXX: free port_list ? */
     js_free_message_pipe(ts->recv_pipe);
     js_free_message_pipe(ts->send_pipe);
