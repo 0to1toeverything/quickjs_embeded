@@ -29,23 +29,27 @@
 #include <inttypes.h>
 #include <string.h>
 #include <assert.h>
+#include <limits.h>
 #include <unistd.h>
 #include <errno.h>
+#if USE_OS_LIB_FUNC
 #include <fcntl.h>
 #include <sys/time.h>
 #include <time.h>
 #include <signal.h>
-#include <limits.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#endif
 #if defined(_WIN32)
 #include <windows.h>
 #include <conio.h>
 #include <utime.h>
 #else
 #include <dlfcn.h>
+#if USE_OS_LIB_FUNC
 #include <termios.h>
 #include <sys/ioctl.h>
+#endif
 #include <sys/wait.h>
 
 #if defined(__APPLE__)
@@ -1567,7 +1571,7 @@ JSModuleDef *js_init_module_std(JSContext *ctx, const char *module_name)
 
 /**********************************************************/
 /* 'os' object */
-
+#if USE_OS_LIB_FUNC
 static JSValue js_os_open(JSContext *ctx, JSValueConst this_val,
                           int argc, JSValueConst *argv)
 {
@@ -3120,7 +3124,7 @@ static JSValue js_os_dup2(JSContext *ctx, JSValueConst this_val,
 }
 
 #endif /* !_WIN32 */
-
+#endif /* USE_OS_LIB_FUNC */
 #if USE_WORKER
 
 /* Worker */
@@ -3575,7 +3579,7 @@ void js_std_set_worker_new_context_func(JSContext *(*func)(JSRuntime *rt))
 #else
 #define OS_PLATFORM "linux"
 #endif
-
+#if USE_OS_LIB_FUNC
 #define OS_FLAG(x) JS_PROP_INT32_DEF(#x, x, JS_PROP_CONFIGURABLE )
 
 static const JSCFunctionListEntry js_os_funcs[] = {
@@ -3712,7 +3716,7 @@ JSModuleDef *js_init_module_os(JSContext *ctx, const char *module_name)
 #endif
     return m;
 }
-
+#endif
 /**********************************************************/
 
 static JSValue js_print(JSContext *ctx, JSValueConst this_val,
@@ -3801,20 +3805,26 @@ void js_std_free_handlers(JSRuntime *rt)
     struct list_head *el, *el1;
 
     list_for_each_safe(el, el1, &ts->os_rw_handlers) {
+        #if USE_OS_LIB_FUNC
         JSOSRWHandler *rh = list_entry(el, JSOSRWHandler, link);
         free_rw_handler(rt, rh);
+        #endif
     }
 
     list_for_each_safe(el, el1, &ts->os_signal_handlers) {
+        #if USE_OS_LIB_FUNC
         JSOSSignalHandler *sh = list_entry(el, JSOSSignalHandler, link);
         free_sh(rt, sh);
+        #endif
     }
     
     list_for_each_safe(el, el1, &ts->os_timers) {
+        #if USE_OS_LIB_FUNC
         JSOSTimer *th = list_entry(el, JSOSTimer, link);
         unlink_timer(rt, th);
         if (!th->has_object)
             free_timer(rt, th);
+        #endif
     }
 
 #if USE_WORKER
