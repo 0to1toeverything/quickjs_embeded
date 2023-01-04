@@ -21,70 +21,21 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <inttypes.h>
-#include <string.h>
-#include <assert.h>
-#include <unistd.h>
-#include <errno.h>
-#if !defined(_WIN32)
-#include <sys/wait.h>
-#endif
 
+#include <string.h>
 #include "cutils.h"
 #include "quickjs-libc.h"
 
-static int eval_buf(JSContext *ctx, const void *buf, int buf_len,
-                    const char *filename, int eval_flags)
-{
-    JSValue val;
-    int ret;
-
-    if ((eval_flags & JS_EVAL_TYPE_MASK) == JS_EVAL_TYPE_MODULE) {
-        /* for the modules, we compile then run to be able to set
-           import.meta */
-        val = JS_Eval(ctx, buf, buf_len, filename,
-                      eval_flags | JS_EVAL_FLAG_COMPILE_ONLY);
-        if (!JS_IsException(val)) {
-            js_module_set_import_meta(ctx, val, TRUE, TRUE);
-            val = JS_EvalFunction(ctx, val);
-        }
-    } else {
-        val = JS_Eval(ctx, buf, buf_len, filename, eval_flags);
-    }
-    if (JS_IsException(val)) {
-        js_std_dump_error(ctx);
-        ret = -1;
-    } else {
-        ret = 0;
-    }
-    JS_FreeValue(ctx, val);
-    return ret;
-}
-
-static int eval_file(JSContext *ctx, const char *filename, int module)
-{
-    uint8_t *buf;
-    int ret, eval_flags;
-    size_t buf_len;
-    eval_flags = module;
-    buf = js_load_file(ctx, &buf_len, filename);
-    ret = eval_buf(ctx, buf, buf_len, filename, eval_flags);
-    js_free(ctx, buf);
-    return ret;
-}
-
-
-
-int main(int argc, char **argv)
+int main()
 {
     JSRuntime *rt;
     JSContext *ctx;
     rt = JS_NewRuntime();
     ctx = JS_NewContext(rt);
     js_std_add_helpers(ctx, -1, 0);
-    eval_file(ctx, "examples/hello.js", JS_EVAL_TYPE_GLOBAL);
+    char s[] = "console.log(\"Hello World!!\");";
+    char *buf = js_malloc(ctx, strlen(s) + 1);
+    strcpy(buf, s);
+    JS_Eval(ctx, buf, strlen(s), "kk", JS_EVAL_TYPE_GLOBAL); 
     return 0;
 }

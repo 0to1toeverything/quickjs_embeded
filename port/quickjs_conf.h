@@ -6,5 +6,6 @@
 #define USE_WORKER              0
 #define USE_OS_LIB_FUNC         0
 #define USE_STD_LIB_FUNC        1
+#define USE_STD_FILE_IO         0
 
 #endif /* __QUICKJS_CONF_H */
